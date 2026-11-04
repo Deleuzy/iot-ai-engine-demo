@@ -1,0 +1,33 @@
+# `docker compose up --build` runs the pipeline once (fetch, checksum, validate, detect, forecast), then starts
+# the API once the pipeline has finished successfully. The engine uses the offline mock backend by default.
+# Before the first run: mkdir -p data results && chmod -R a+rwX data results  (the image runs as uid 10001).
+services:
+  pipeline:
+    build: .
+    command: ["python", "-m", "iot_ai", "run"]
+    volumes:
+      - ./data:/app/data
+      - ./results:/app/results
+
+  api:
+    build: .
+    depends_on:
+      pipeline:
+        condition: service_completed_successfully
+    environment:
+      ENGINE_BACKEND: ${ENGINE_BACKEND:-mock}
+      ENGINE_MODEL: ${ENGINE_MODEL:-}
+      ENGINE_BASE_URL: ${ENGINE_BASE_URL:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY:-}
+      ENGINE_API_KEY: ${ENGINE_API_KEY:-}
+    volumes:
+      - ./data:/app/data:ro
+      - ./results:/app/results:ro
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status == 200 else 1)"]
+      interval: 5s
+      timeout: 3s
+      retries: 12

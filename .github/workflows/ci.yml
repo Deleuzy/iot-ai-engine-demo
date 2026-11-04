@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  lint-and-test:
+    name: Lint, strict types, tests (uv)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.9.26"
+      - run: uv sync --locked
+      - run: uv run ruff check .
+      - run: uv run mypy
+      - run: uv run pytest -q
+
+  pipeline-and-eval:
+    name: Public data pipeline and engine evaluation
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.9.26"
+      - run: uv sync --locked
+      # Downloads the public file, checks its SHA-256 against the pinned value, and runs the whole pipeline.
+      - run: uv run python -m iot_ai run
+      - run: uv run python -m iot_ai eval-engine
+      - uses: actions/upload-artifact@v4
+        with:
+          name: results
+          path: results/
+
+  docker:
+    name: Docker Compose end to end
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+    steps:
+      - uses: actions/checkout@v4
+      # The image runs as uid 10001; the bind-mounted folders must be writable by it.
+      - run: mkdir -p data results && chmod -R a+rwX data results
+      - run: docker compose build
+      - run: docker compose up -d --wait
+      - name: API answers and explains one event
+        run: |
+          curl -fs localhost:8000/health
+          id=$(curl -fs "localhost:8000/events?limit=1" | python -c 'import json,sys; print(json.load(sys.stdin)[0]["event_id"])')
+          curl -fs -X POST localhost:8000/explain -H 'content-type: application/json' \
+            -d "{\"event_id\": \"$id\"}" \
+            | python -c 'import json,sys; d=json.load(sys.stdin); assert d["status"] in ("model","fallback_template"), d; print(d["suggested_action"])'
+      - name: Container runs as non-root
+        run: test "$(docker compose exec -T api id -u)" = "10001"
+      - if: always()
+        run: docker compose down -v

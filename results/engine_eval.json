@@ -1,0 +1,146 @@
+{
+  "events_evaluated": 40,
+  "retrieval": {
+    "queries": 12,
+    "hit_at_1": 0.5,
+    "hit_at_3": 0.667,
+    "embedder": "hashing-512",
+    "detail": [
+      {
+        "query": "a sensor repeats the same temperature value for an hour",
+        "expected": "sensor_faults#stuck-sensor",
+        "top3": [
+          "sensor_faults#stuck-sensor",
+          "sensor_faults#spike",
+          "sensor_faults#dropout"
+        ]
+      },
+      {
+        "query": "one reading jumps far away from its neighbours and comes back",
+        "expected": "sensor_faults#spike",
+        "top3": [
+          "sensor_faults#spike",
+          "response_actions#verify-reading-and-resample",
+          "response_actions#inspect-sensor"
+        ]
+      },
+      {
+        "query": "the device has no readings for a long stretch",
+        "expected": "sensor_faults#dropout",
+        "top3": [
+          "response_actions#verify-reading-and-resample",
+          "connectivity#first-checks-for-a-silent-device",
+          "battery_and_power#scheduling-a-battery-check"
+        ]
+      },
+      {
+        "query": "battery voltage is falling faster than its usual trend",
+        "expected": "battery_and_power#voltage-trend",
+        "top3": [
+          "response_actions#schedule-battery-check",
+          "battery_and_power#scheduling-a-battery-check",
+          "battery_and_power#power-related-dropouts"
+        ]
+      },
+      {
+        "query": "when should I schedule a battery check",
+        "expected": "battery_and_power#scheduling-a-battery-check",
+        "top3": [
+          "response_actions#schedule-battery-check",
+          "battery_and_power#scheduling-a-battery-check",
+          "battery_and_power#voltage-trend"
+        ]
+      },
+      {
+        "query": "the device is silent but the other devices nearby are fine",
+        "expected": "connectivity#first-checks-for-a-silent-device",
+        "top3": [
+          "connectivity#first-checks-for-a-silent-device",
+          "response_actions#check-connectivity-and-power",
+          "battery_and_power#scheduling-a-battery-check"
+        ]
+      },
+      {
+        "query": "timestamps jump backwards in time",
+        "expected": "connectivity#clock-gaps",
+        "top3": [
+          "connectivity#clock-gaps",
+          "sensor_faults#spike",
+          "data_quality_rules#rules-used-in-this-demo"
+        ]
+      },
+      {
+        "query": "temperature of 120 degrees is physically impossible",
+        "expected": "sensor_faults#out-of-range-values",
+        "top3": [
+          "response_actions#verify-reading-and-resample",
+          "battery_and_power#voltage-trend",
+          "sensor_faults#out-of-range-values"
+        ]
+      },
+      {
+        "query": "what are the rules for a missing value",
+        "expected": "data_quality_rules#rules-used-in-this-demo",
+        "top3": [
+          "data_quality_rules#why-the-rules-are-fixed",
+          "response_actions#verify-reading-and-resample",
+          "sensor_faults#stuck-sensor"
+        ]
+      },
+      {
+        "query": "send a technician to look at the sensor element",
+        "expected": "response_actions#inspect-sensor",
+        "top3": [
+          "response_actions#inspect-sensor",
+          "battery_and_power#scheduling-a-battery-check",
+          "sensor_faults#dropout"
+        ]
+      },
+      {
+        "query": "add a visit for the battery",
+        "expected": "response_actions#schedule-battery-check",
+        "top3": [
+          "battery_and_power#scheduling-a-battery-check",
+          "sensor_faults#stuck-sensor",
+          "response_actions#verify-reading-and-resample"
+        ]
+      },
+      {
+        "query": "no action now keep watching the device",
+        "expected": "response_actions#monitor-only",
+        "top3": [
+          "response_actions#monitor-only",
+          "connectivity#clock-gaps",
+          "connectivity#first-checks-for-a-silent-device"
+        ]
+      }
+    ]
+  },
+  "honest_backend": {
+    "backend": "mock-good",
+    "answers_passing_checks": 40,
+    "answers_total": 40,
+    "numbers_checked_total": 242
+  },
+  "broken_backends": {
+    "wrong_number": {
+      "cases": 40,
+      "caught": 40
+    },
+    "fake_citation": {
+      "cases": 40,
+      "caught": 40
+    },
+    "no_tools": {
+      "cases": 40,
+      "caught": 40
+    },
+    "unknown_tool": {
+      "cases": 40,
+      "caught": 40
+    }
+  },
+  "guardrail_catch_rate": 1.0,
+  "guardrail_caught": 160,
+  "guardrail_cases": 160
+}

@@ -1,0 +1,24 @@
+{
+  "devices": 55,
+  "bins_per_device": 5616,
+  "split_cut": "2004-03-26 07:10:00",
+  "bins_with_no_reading": 102217,
+  "rule_hits_unlabelled_real_readings": {
+    "r_missing": {
+      "train": 45230,
+      "test": 61969
+    },
+    "r_range": {
+      "train": 22232,
+      "test": 30029
+    },
+    "r_stuck": {
+      "train": 17160,
+      "test": 27451
+    },
+    "r_spike": {
+      "train": 189,
+      "test": 44
+    }
+  }
+}

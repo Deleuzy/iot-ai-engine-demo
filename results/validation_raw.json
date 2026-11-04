@@ -1,0 +1,22 @@
+{
+  "file_checksums_sha256": {
+    "data.txt.gz": "d99288c8f406ca6604d359ceaa0d8adfffa79e7095061a1e27dc4399f48c7225",
+    "mote_locs.txt": "3865c0263110c24c40e3377690cecaa552e0575cf56cdb9f5f8bd17130b6bf04"
+  },
+  "parse": {
+    "lines_in_file": 2313682,
+    "rows_parsed": 2313156,
+    "rows_bad_fields_skipped": 526,
+    "rows_bad_timestamp": 4
+  },
+  "rules": {
+    "readings": 2313156,
+    "rule_clock_outside_window": 4,
+    "rule_clock_step_back": 227391,
+    "rule_clock_gap_over_threshold": 222315,
+    "rule_missing_any_channel": 93353,
+    "rule_out_of_range_temperature": 408072,
+    "rule_out_of_range_humidity": 299084,
+    "rule_out_of_range_voltage": 4
+  }
+}
