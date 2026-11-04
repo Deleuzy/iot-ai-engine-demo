@@ -63,6 +63,21 @@ class InjectedEvent:
     bins: int
 
 
+def _free_starts(ok: np.ndarray, used: np.ndarray, span: int) -> np.ndarray:
+    """Start positions where `span` bins all have data and no used bin lies within one bin of them."""
+    n = len(ok)
+    if n < span:
+        return np.empty(0, dtype=np.int64)
+    starts = np.arange(0, n - span + 1)
+    ok_cs = np.concatenate([[0], np.cumsum(ok.astype(np.int64))])
+    all_ok = (ok_cs[starts + span] - ok_cs[starts]) == span
+    padded = np.concatenate([[0], used.astype(np.int64), [0]])  # padded[k] is used[k-1]
+    pad_cs = np.concatenate([[0], np.cumsum(padded)])
+    # padded[s : s+span+2] covers the event bins and one bin on each side.
+    free = (pad_cs[starts + span + 2] - pad_cs[starts]) == 0
+    return np.asarray(starts[all_ok & free], dtype=np.int64)
+
+
 def inject(
     grid: pd.DataFrame, cut: pd.Timestamp, plan: InjectionPlan, seed: int
 ) -> tuple[pd.DataFrame, list[InjectedEvent]]:
@@ -88,15 +103,30 @@ def inject(
         mote = int(str(mote_key))
         idx_all = dev.index.to_numpy()
         bins = dev["bin"].to_numpy()
+        # A fault can only be written where the channel it changes has a value, so each label marks a visible change.
+        # A dropout needs readings to remove, because real silent bins have no readings at all.
+        valid_for = {
+            "stuck": dev["temperature"].notna().to_numpy(),
+            "spike": dev["temperature"].notna().to_numpy(),
+            "sag": dev["voltage"].notna().to_numpy(),
+            "dropout": (dev["n_readings"] > 0).to_numpy(),
+        }
         for split_name, mask in (("train", bins < np.datetime64(cut)), ("test", bins >= np.datetime64(cut))):
             pos = np.flatnonzero(mask)
-            # One segment per event, kinds shuffled: faults inside one split never overlap each other.
+            used = np.zeros(len(pos), dtype=bool)
+            # Kinds are shuffled. Each event gets a random start where its bins have data and no other event lies
+            # within one bin, so faults inside one split never overlap or touch each other.
             order = [(kind, span) for kind, n, span in plan_items for _ in range(n)]
             order = [order[i] for i in rng.permutation(len(order))]
-            seg = len(pos) // len(order)
-            for i, (kind, span) in enumerate(order):
-                lo = i * seg
-                start = int(rng.integers(lo, lo + seg - span + 1))
+            for kind, span in order:
+                ok = valid_for[kind][pos]
+                starts = _free_starts(ok, used, span)
+                if starts.size == 0:
+                    # Some devices have no data at all in a split (they went quiet). Nothing can be placed there,
+                    # so the event is skipped and the placed counts in detection_metrics.json show the shortfall.
+                    continue
+                start = int(starts[rng.integers(0, starts.size)])
+                used[start : start + span] = True
                 rows = idx_all[pos[start : start + span]]
                 if kind == "stuck":
                     out.loc[rows, "temperature"] = float(out.loc[rows[0], "temperature"])
@@ -104,6 +134,7 @@ def inject(
                     out.loc[rows, "temperature"] = out.loc[rows, "temperature"] + plan.spike_temp_add
                 elif kind == "dropout":
                     out.loc[rows, CHANNELS] = np.nan
+                    out.loc[rows, "n_readings"] = 0
                 else:
                     ramp = np.linspace(0.0, -plan.sag_volt_drop, span)
                     out.loc[rows, "voltage"] = out.loc[rows, "voltage"] + ramp

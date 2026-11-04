@@ -75,3 +75,18 @@ def test_nan_in_summary_is_caught() -> None:
     verdict = run(bad)
     assert not verdict.passed
     assert any("nan" in f for f in verdict.findings)
+
+
+def test_glued_unit_numbers_are_checked() -> None:
+    assert not run({**GOOD, "summary": "Device 7 logged 999bins of flagged time with score 0.8731 and 21.37 C."}).passed
+    assert not run({**GOOD, "summary": "Voltage fell 3.7V with score 0.8731 and a mean of 21.37 C in the window."}).passed
+
+
+def test_integer_must_match_a_tool_value_exactly() -> None:
+    # 3 is within half a unit of 2.712 and 21 of 21.37, but neither is what the tools returned.
+    assert not run({**GOOD, "summary": "Device 7 ran 3 C hotter than neighbours with score 0.8731 and 21.37 C."}).passed
+    assert not run({**GOOD, "summary": "Device 7 mean temperature 21 C with score 0.8731 and voltage 2.712 V."}).passed
+
+
+def test_decimal_rounded_to_its_own_precision_passes() -> None:
+    assert run({**GOOD, "summary": "Device 7 had score 0.87 and mean temperature 21.4 C over the window."}).passed

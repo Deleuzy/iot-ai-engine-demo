@@ -2,7 +2,8 @@
 
 Two levels:
 * raw readings (about 30 s apart per device): missing values, out-of-range values, clock errors
-  (timestamps outside the window, steps back in time, gaps of silence), spikes;
+  (timestamps outside the window, steps back in time), and gaps of silence (more than 60 minutes between readings).
+  Gaps are counted and reported on their own; they are not clock errors, since a device can be silent for real;
 * the 10-minute grid built from the readings: the same rules plus "stuck" (an identical value for an hour).
 """
 

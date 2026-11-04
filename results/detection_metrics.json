@@ -2,19 +2,19 @@
   "seed": 20260401,
   "split_cut": "2004-03-26 07:10:00",
   "test_bins": 92675,
-  "test_positive_bins": 9350,
+  "test_positive_bins": 7062,
   "injected_events": {
     "train": {
-      "spike": 220,
-      "stuck": 165,
-      "sag": 110,
-      "dropout": 165
+      "spike": 210,
+      "stuck": 156,
+      "sag": 104,
+      "dropout": 156
     },
     "test": {
-      "dropout": 165,
-      "sag": 110,
-      "spike": 220,
-      "stuck": 165
+      "dropout": 134,
+      "sag": 76,
+      "spike": 180,
+      "stuck": 131
     }
   },
   "settings": {
@@ -52,103 +52,103 @@
   },
   "thresholds": {
     "rolling_z_k": 3.0,
-    "gbm_threshold": 0.8
+    "gbm_threshold": 0.7
   },
   "detectors": {
     "rule_based": {
       "recall_by_fault_kind": {
         "stuck": 1.0,
-        "spike": 1.0,
+        "spike": 0.9944,
         "dropout": 1.0,
-        "sag": 0.9755
+        "sag": 0.9342
       },
-      "flags_on_unlabelled_real_faults": 27116,
-      "precision_excluding_unlabelled_real_faults": 0.1435,
-      "precision": 0.101,
-      "recall": 0.9896,
-      "f1": 0.1833,
-      "tp": 9253,
-      "fp": 82358,
-      "fn": 97,
-      "tn": 967,
-      "devices_with_faults": 55,
+      "flags_on_unlabelled_real_faults": 23456,
+      "precision_excluding_unlabelled_real_faults": 0.1006,
+      "precision": 0.0749,
+      "recall": 0.9742,
+      "f1": 0.1392,
+      "tp": 6880,
+      "fp": 84942,
+      "fn": 182,
+      "tn": 671,
+      "devices_with_faults": 45,
       "per_device_f1_median": 0.1833
     },
     "rule_based_no_missing": {
       "recall_by_fault_kind": {
-        "stuck": 0.3687,
-        "spike": 0.3432,
+        "stuck": 1.0,
+        "spike": 0.9944,
         "dropout": 0.0,
-        "sag": 0.2965
+        "sag": 0.9342
       },
-      "flags_on_unlabelled_real_faults": 27116,
+      "flags_on_unlabelled_real_faults": 23455,
       "precision_excluding_unlabelled_real_faults": 1.0,
-      "precision": 0.0819,
-      "recall": 0.2588,
-      "f1": 0.1245,
-      "tp": 2420,
-      "fp": 27116,
-      "fn": 6930,
-      "tn": 56209,
-      "devices_with_faults": 55,
-      "per_device_f1_median": 0.1093
+      "precision": 0.1835,
+      "recall": 0.7465,
+      "f1": 0.2946,
+      "tp": 5272,
+      "fp": 23455,
+      "fn": 1790,
+      "tn": 62158,
+      "devices_with_faults": 45,
+      "per_device_f1_median": 0.3108
     },
     "rolling_z": {
       "recall_by_fault_kind": {
-        "stuck": 0.0212,
-        "spike": 0.2409,
+        "stuck": 0.0411,
+        "spike": 0.7417,
         "dropout": 0.0,
-        "sag": 0.0689
+        "sag": 0.2226
       },
-      "flags_on_unlabelled_real_faults": 1526,
-      "precision_excluding_unlabelled_real_faults": 0.8185,
-      "precision": 0.2139,
-      "recall": 0.0473,
-      "f1": 0.0774,
-      "tp": 442,
-      "fp": 1624,
-      "fn": 8908,
-      "tn": 81701,
-      "devices_with_faults": 55,
-      "per_device_f1_median": 0.0645
+      "flags_on_unlabelled_real_faults": 1329,
+      "precision_excluding_unlabelled_real_faults": 0.9171,
+      "precision": 0.4071,
+      "recall": 0.1378,
+      "f1": 0.2059,
+      "tp": 973,
+      "fp": 1417,
+      "fn": 6089,
+      "tn": 84196,
+      "devices_with_faults": 45,
+      "per_device_f1_median": 0.2212
     },
     "isolation_forest": {
       "recall_by_fault_kind": {
-        "stuck": 0.3407,
-        "spike": 0.3386,
+        "stuck": 0.9593,
+        "spike": 0.9667,
         "dropout": 0.0,
-        "sag": 0.297
+        "sag": 0.9349
       },
-      "flags_on_unlabelled_real_faults": 27071,
-      "precision_excluding_unlabelled_real_faults": 0.9685,
-      "precision": 0.0793,
-      "recall": 0.2499,
-      "f1": 0.1204,
-      "tp": 2337,
-      "fp": 27147,
-      "fn": 7013,
-      "tn": 56178,
-      "devices_with_faults": 55,
-      "per_device_f1_median": 0.104
+      "flags_on_unlabelled_real_faults": 23163,
+      "precision_excluding_unlabelled_real_faults": 0.9883,
+      "precision": 0.182,
+      "recall": 0.7318,
+      "f1": 0.2915,
+      "tp": 5168,
+      "fp": 23224,
+      "fn": 1894,
+      "tn": 62389,
+      "devices_with_faults": 45,
+      "per_device_f1_median": 0.2815
     },
     "gbm": {
       "recall_by_fault_kind": {
-        "stuck": 0.3828,
-        "spike": 0.3227,
-        "dropout": 0.3202,
-        "sag": 0.3215
+        "stuck": 0.9881,
+        "spike": 0.9306,
+        "dropout": 0.9708,
+        "sag": 0.985
       },
-      "flags_on_unlabelled_real_faults": 25501,
-      "precision_excluding_unlabelled_real_faults": 0.822,
-      "precision": 0.1085,
-      "recall": 0.3407,
-      "f1": 0.1645,
-      "tp": 3186,
-      "fp": 26191,
-      "fn": 6164,
-      "tn": 57134,
-      "devices_with_faults": 55,
-      "per_device_f1_median": 0.163
+      "flags_on_unlabelled_real_faults": 21560,
+      "precision_excluding_unlabelled_real_faults": 0.6059,
+      "precision": 0.2098,
+      "recall": 0.98,
+      "f1": 0.3457,
+      "tp": 6921,
+      "fp": 26061,
+      "fn": 141,
+      "tn": 59552,
+      "devices_with_faults": 45,
+      "per_device_f1_median": 0.3154
     }
   }
 }

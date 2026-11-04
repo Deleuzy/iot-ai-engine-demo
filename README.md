@@ -13,23 +13,23 @@ any Aurocon system or device. See [What is real and what is simulated](#what-is-
 
 Every number below is copied from a file in [`results/`](results/), written by `python -m iot_ai run` and
 `python -m iot_ai eval-engine`. Seed 20260401. Test split: the last 30 % of the time window, 2004-03-26 07:10
-onwards, 92,675 ten-minute bins across 55 devices, of which 9,350 are inside an injected fault.
+onwards, 92,675 ten-minute bins across 55 devices, of which 7,062 are inside an injected fault.
 
 | What | Result | File |
 |---|---|---|
 | Raw readings parsed from the public file | 2,313,156 of 2,313,682 lines (526 malformed lines skipped) | [validation_raw.json](results/validation_raw.json) |
 | Clock errors in raw readings | 227,391 readings step back in time against the device sequence; 4 fall outside the study window | [validation_raw.json](results/validation_raw.json) |
 | Bins with no reading (10-minute grid, 55 devices) | 102,217 of 308,880 (33 %) | [validation_grid_real.json](results/validation_grid_real.json) |
-| Detector: rule-based (all four rules) | precision 0.101, recall 0.990, **F1 0.183**; per-device median F1 0.183 | [detection_metrics.json](results/detection_metrics.json) |
-| Detector: rules without the "missing" rule | precision 0.082, recall 0.259, F1 0.1245 | [detection_metrics.json](results/detection_metrics.json) |
-| Detector: rolling z-score (6 h, k = 3) | precision 0.214, recall 0.047, F1 0.077 | [detection_metrics.json](results/detection_metrics.json) |
-| Detector: isolation forest (unsupervised) | precision 0.079, recall 0.250, F1 0.120 | [detection_metrics.json](results/detection_metrics.json) |
-| Detector: gradient boosting (trained on injected faults, threshold 0.8) | precision 0.109, recall 0.341, **F1 0.165**; precision 0.822 when flags on unlabelled real faults are removed | [detection_metrics.json](results/detection_metrics.json) |
-| Battery voltage forecast, one hour ahead, MAE | persistence **0.0068 V**, gradient boosting 0.0086 V; **the model does not beat persistence** | [forecast_metrics.json](results/forecast_metrics.json) |
+| Detector: rule-based (all four rules) | precision 0.075, recall 0.974, **F1 0.139**; per-device median F1 0.183 | [detection_metrics.json](results/detection_metrics.json) |
+| Detector: rules without the "missing" rule | precision 0.183, recall 0.747, F1 0.295; per-device median F1 0.311 | [detection_metrics.json](results/detection_metrics.json) |
+| Detector: rolling z-score (6 h, k = 3) | precision 0.407, recall 0.138, F1 0.206 | [detection_metrics.json](results/detection_metrics.json) |
+| Detector: isolation forest (unsupervised) | precision 0.182, recall 0.732, F1 0.291 | [detection_metrics.json](results/detection_metrics.json) |
+| Detector: gradient boosting (trained on injected faults, threshold 0.7) | precision 0.210, recall 0.980, **F1 0.346**; precision 0.606 when flags on unlabelled real faults are removed | [detection_metrics.json](results/detection_metrics.json) |
+| Battery voltage forecast, one hour ahead, MAE, 2,771 clean test rows | persistence **0.0072 V**, gradient boosting 0.0097 V; **the model does not beat persistence** | [forecast_metrics.json](results/forecast_metrics.json) |
 | Engine retrieval, 12 labelled queries | hit@1 **0.50**, hit@3 **0.67** | [engine_eval.json](results/engine_eval.json) |
-| Engine, honest mock backend, 40 events | 40 of 40 answers pass all checks; 242 numbers checked against tool output | [engine_eval.json](results/engine_eval.json) |
+| Engine, honest mock backend, 40 events | 40 of 40 answers pass all checks; 241 numbers checked against tool output | [engine_eval.json](results/engine_eval.json) |
 | Engine guardrails, four broken backends, 160 answers | 160 of 160 caught (wrong number, invented citation, no tool call, unknown tool) | [engine_eval.json](results/engine_eval.json) |
-| Tests | 36 pytest tests, ruff and strict mypy clean | CI |
+| Tests | 51 pytest tests, ruff and strict mypy clean | CI |
 
 How to read the detector rows. Precision is measured against the injected faults only. The real readings also
 contain faults nobody labelled (out-of-range temperatures such as 120 °C, long stuck runs, clock problems), and a
@@ -38,16 +38,19 @@ those flags. It is circular for the rule rows, which flag exactly those bins, so
 
 ## What the results say
 
-- **No detector is good on this test.** The best F1 belongs to the rule set, and it is inflated by the "missing"
-  rule: a third of all bins have no reading in the real data, so that rule flags almost everything, and its
-  recall on dropouts and on the voltage sag is high for that reason alone. Without it, the rules find 35 % of
-  spikes and 37 % of stuck runs.
-- **The gradient-boosting model does not beat the rules on F1.** Without the missing rule, the rules find no dropouts
-  at all, while the model finds 32 % of them, and it finds about as many stuck and spike bins. Its overall F1 is still
-  lower than the full rule set, and its raw precision looks low mainly because it also flags real faults that nobody
-  labelled.
+- **The best F1 belongs to gradient boosting (0.346), but no detector is good at finding these faults.** Its precision
+  is 0.21: 79 % of its flags are not injected faults, and 21,560 of them are real faults nobody labelled. Rules without
+  the "missing" rule reach F1 0.295. The full rule set has the lowest F1 (0.139), because a third of all bins have no
+  reading in the real data and the "missing" rule flags them.
+- **The injected faults are easy to see, which inflates recall.** Stuck runs are 18 identical bins, spikes are +8 °C,
+  and sags are a 0.3 V ramp. Recall on these numbers is an upper bound. Real faults are subtler.
+- **The gradient-boosting model finds dropouts; the rules do not.** Without the "missing" rule, the rules find none of the
+  dropouts, while the model finds 97 %. A dropout here is 2 hours of silence. Most real silent runs last one bin, so the
+  model is not learning a duration shortcut, but a 2-hour silence is a rare pattern in the real data. Treat this recall
+  with care.
 - **The battery forecast does not beat persistence.** Voltage changes by a few millivolts per hour, so repeating
-  the last value is already very good. A model would need more history per device or a different target.
+  the last value is already very good (MAE 0.0072 V). The model is worse (0.0097 V). A model would need more history per
+  device or a different target.
 - **Two data findings matter more than the models.** About a third of device-bins are silent, and about one reading
   in ten has a timestamp that disagrees with the device sequence. A production detector has to treat silence and
   clock faults as their own problems, not as noise to smooth over.
@@ -58,7 +61,7 @@ those flags. It is circular for the rule rows, which flag exactly those bins, so
 |---|---|---|
 | Sensor readings | **Real** | Intel Berkeley Research Lab, 54 motes, 28 Feb to 5 Apr 2004: temperature, humidity, light, battery voltage. Downloaded from `db.csail.mit.edu` with its SHA-256 checked against the value pinned in `src/iot_ai/config.py`. The file is not committed. |
 | Device identity and placement | Real ids, no product meaning | Motes are called devices. Their locations file is downloaded and checksummed but not used. |
-| Faults | **Simulated, injected** | Stuck, spike, dropout and voltage sag, written into the test and training values with a fixed seed. Each event is recorded in `data/processed/injected_events.json`. |
+| Faults | **Simulated, injected** | Stuck, spike, dropout and voltage sag, written into the test and training values with a fixed seed. Each event is recorded in `data/processed/injected_events.json`, and the labels the evaluation uses are in `data/processed/answer_key.json`. |
 | Validation rules | Real code, fixed thresholds | Written before the results were looked at. Thresholds are in `src/iot_ai/config.py`. |
 | Product and support documents (`knowledge/`) | **Written for this demo** | They describe a generic runbook. They are not Aurocon or vendor documentation. |
 | Model backends | Mock by default; real providers wired but not run in CI | The mock is deterministic and offline. Anthropic, Mistral and an OpenAI-compatible endpoint (vLLM) are implemented with plain HTTP and tested against a mock transport. They have not been called with a real key in this repository. |
@@ -78,8 +81,11 @@ median of the readings in each bin, so one bad value does not move a bin. The fi
 data and the rest is test data. One cut-off applies to all devices.
 
 **Injection** ([prepare.py](src/iot_ai/prepare.py)). Each device gets, in each split, three stuck runs of 3 hours,
-four 20-minute spikes of +8 °C, three 2-hour dropouts, and two 6-hour voltage sags of -0.3 V. Each fault gets its own
-segment of the split, so faults never overlap. The labels are per bin.
+four 20-minute spikes of +8 °C, three 2-hour dropouts, and two 6-hour voltage sags of -0.3 V. A fault is placed only
+where the channel it changes has a value (a dropout needs readings to remove), and it never touches another fault.
+A device with no data left in a split gets fewer faults, so the test counts are below the plan: 134 dropouts,
+76 sags, 180 spikes and 131 stuck runs were placed in the test split (out of 165, 110, 220 and 165). The labels are
+per bin. The answer key is written to `data/processed/answer_key.json`, which only the evaluation reads.
 
 **Detectors** ([detect.py](src/iot_ai/detect.py)). The threshold of each learned or tuned detector is chosen on the
 last 15 % of the training part, never on the test split. Models are fitted without bins where the rules see a real
@@ -88,8 +94,8 @@ fault that is not an injected label, because those bins would teach the model th
 **Features** ([features.py](src/iot_ai/features.py)). Every feature uses the current and earlier bins only. A unit test
 changes future values and checks that no earlier feature moves.
 
-**Forecast** ([forecast.py](src/iot_ai/forecast.py)). Battery voltage one hour ahead, scored only on clean test rows
-(no injected fault in the input or target window).
+**Forecast** ([forecast.py](src/iot_ai/forecast.py)). Battery voltage one hour ahead, scored only on clean test rows:
+no injected fault in the 24 hours of input (the longest look-back in the features) or in the hour being predicted.
 
 ## AI engine
 
@@ -111,12 +117,15 @@ Flow for one event:
    - it is JSON with a bounded summary and a suggested action from a fixed list;
    - at least one tool was called and no tool call failed;
    - every cited passage was retrieved for this request;
-   - every number in the summary matches a number a tool or the event returned, at the precision written.
-     ISO dates and times are skipped; nothing else is.
-4. If a check fails, the engine returns a **template explanation** built from the event fields and records the
-   findings. It never returns an unchecked model answer.
+   - every number in the summary matches a number a tool or the event returned. An integer must equal a returned
+     value exactly; a decimal must equal a returned value rounded to the same number of decimals. ISO dates and
+     times are skipped; nothing else is.
+4. If a check fails, or the model service errors, the engine returns a **template explanation** built from the event
+   fields and records the findings. The template cites only a passage that was retrieved for this request. It never
+   returns an unchecked model answer.
 
-The engine never sees the injected labels or the fault kinds. It sees the device as a device would show it.
+The engine never sees the injected labels or the fault kinds: `events.json` carries no label fields, and the engine
+builds the prompt from the public event fields only. It sees the device as a device would show it.
 
 ## Run it
 
@@ -152,8 +161,14 @@ key to pass its tests.
   causally are the z-score, the isolation forest and the gradient-boosting model.
 - **The model is small and was not tuned for speed.** It does not beat the rules on F1 and does not beat persistence on
   voltage. Those are results, not a bug to hide.
+- **The injected faults are clean and large by construction.** They are easier than real faults, so the recall figures
+  are upper bounds, and dropouts are 2 hours long where real silence is usually one bin.
+- **Devices that went quiet get no faults in the quiet part.** About 140 of the 660 faults planned for the test split could not be placed.
 - **The engine checks numbers and citations, not the quality of the wording.** A correct, well-grounded sentence can
   still give a poor recommendation. Human review stays with the technician who acts on it.
+- **The gradient-boosting numbers depend slightly on the platform.** The same code, data and locked packages gave F1
+  0.3457 and 1,799 test events on the host (macOS, arm64) and F1 0.3461 and 1,793 events in the Linux Compose image.
+  The saved results are from the host run. Compare with a tolerance, not exactly.
 - **The broken backends are our own mock modes.** Catching 160 of 160 says the checks work against those four failures,
   not against every failure a real model can make. Real provider calls are implemented and unit-tested through a
   mock transport, but this repository has not run them against a live key.
@@ -176,7 +191,7 @@ src/iot_ai/
   api.py           FastAPI: /health, /events, /explain, /results/detection
 knowledge/         the five runbook documents used for retrieval
 results/           saved outputs, the only source of the numbers above
-tests/             36 tests, no network access needed
+tests/             51 tests, no network access needed
 ```
 
 CI ([ci.yml](.github/workflows/ci.yml)) runs lint, strict mypy and the tests; then the pipeline on the real file and the

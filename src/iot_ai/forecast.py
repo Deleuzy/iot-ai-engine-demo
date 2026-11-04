@@ -12,15 +12,19 @@ from sklearn.ensemble import HistGradientBoostingRegressor
 from iot_ai.features import FEATURE_COLUMNS
 
 HORIZON_BINS = 6
+# The longest input look-back in features.py is 144 bins (d_volt_144). A row is clean only if no injected label
+# lies in its whole input window [t-144, t] or in its target window [t+1, t+6].
+LOOKBACK_BINS = 144
 
 
 def run_forecast(frame: pd.DataFrame, test: np.ndarray, fit: np.ndarray, seed: int) -> dict[str, float | int]:
     target = frame.groupby("mote")["voltage"].shift(-HORIZON_BINS)
-    # Forward-looking window for each row: any label in [t, t+6] (computed per device).
-    fwd = frame.groupby("mote")["label"].transform(
-        lambda s: s[::-1].rolling(HORIZON_BINS + 1, min_periods=1).max()[::-1]
+    span = LOOKBACK_BINS + HORIZON_BINS + 1
+    # For row t: max label over [t-144, t+6], per device. A rolling window ending at t+6, shifted back to t.
+    window_label = frame.groupby("mote")["label"].transform(
+        lambda s: s.rolling(span, min_periods=1).max().shift(-HORIZON_BINS).fillna(1.0)
     )
-    clean = (fwd.to_numpy() == 0) & frame["voltage"].notna().to_numpy() & target.notna().to_numpy()
+    clean = (window_label.to_numpy() == 0) & frame["voltage"].notna().to_numpy() & target.notna().to_numpy()
     fit_m = fit & clean
     test_m = test & clean
     y = target.to_numpy()

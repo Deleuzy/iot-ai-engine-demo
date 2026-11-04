@@ -120,7 +120,7 @@
     "backend": "mock-good",
     "answers_passing_checks": 40,
     "answers_total": 40,
-    "numbers_checked_total": 242
+    "numbers_checked_total": 241
   },
   "broken_backends": {
     "wrong_number": {

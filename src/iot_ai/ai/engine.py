@@ -18,6 +18,8 @@ from iot_ai.ai.tools import TOOL_NAMES, TOOL_SPECS, DeviceStore, ToolError, run_
 from iot_ai.ai.types import Backend, Message, ToolCall
 
 MAX_ROUNDS = 4
+# The only event fields the model may see. Anything else (for example answer-key fields) is left out.
+PUBLIC_EVENT_FIELDS = ("device", "start", "end", "bins", "max_score", "rules_fired")
 SYSTEM_PROMPT = (
     "You explain one flagged event from an IoT sensor device. Use the tools to read the device data before you "
     "answer. Only state numbers that a tool or the event returned. Cite only the passage ids you were given. "
@@ -78,8 +80,9 @@ class Engine:
         passage_block = "\n".join(
             f"- {pid}: {self.passages[pid].title}. {self.passages[pid].text}" for pid in retrieved
         )
+        public_event = {k: event[k] for k in PUBLIC_EVENT_FIELDS}
         user = (
-            f"EVENT_JSON: {json.dumps(event)}\n"
+            f"EVENT_JSON: {json.dumps(public_event)}\n"
             f"PASSAGE_IDS: {json.dumps(retrieved)}\n"
             f"ACTIONS: {json.dumps(list(guardrails.ACTIONS))}\n"
             f"PASSAGES:\n{passage_block}"
@@ -90,7 +93,11 @@ class Engine:
         tool_calls = 0
         answer_text = ""
         for _ in range(MAX_ROUNDS):
-            turn = self.backend.turn(trace, TOOL_SPECS)
+            try:
+                turn = self.backend.turn(trace, TOOL_SPECS)
+            except Exception as exc:  # a provider or transport failure is not an answer: fall back, never crash
+                errors.append(f"backend failed: {type(exc).__name__}")
+                break
             if not turn.tool_calls:
                 answer_text = turn.text
                 break
@@ -130,10 +137,12 @@ class Engine:
                 else "verify_reading_and_resample"
             )
         )
-        cite_id = f"response_actions#{action.replace('_', '-')}"
+        # Cite only a passage that was retrieved for this request, so the fallback meets the same citation check.
+        preferred = f"response_actions#{action.replace('_', '-')}"
+        cite_id = preferred if preferred in retrieved else retrieved[0]
         summary = (
             f"Device {event['device']} was flagged from {event['start']} to {event['end']} over {event['bins']} bins "
-            f"with score {event['max_score']}. Rules that fired: {', '.join(rules) if rules else 'none'}. "
+            f"with score {event['max_score']}. Rules that fired: {', '.join(rules) if rules else 'no rules'}. "
             "The assistant could not verify its own answer, so this is the standard template explanation."
         )
         return Explanation(

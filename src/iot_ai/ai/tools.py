@@ -51,7 +51,10 @@ class DeviceStore:
     def history(self, device: int, start: str, end: str) -> dict[str, Any]:
         if device not in self.device_ids():
             raise ToolError(f"unknown device {device}")
-        t0, t1 = pd.Timestamp(start), pd.Timestamp(end)
+        try:
+            t0, t1 = pd.Timestamp(start), pd.Timestamp(end)
+        except (ValueError, TypeError) as exc:
+            raise ToolError(f"start and end must be ISO timestamps: {exc}") from exc
         if t1 < t0:
             raise ToolError("end is before start")
         mask = (self.grid["mote"] == device) & (self.grid["bin"] >= t0) & (self.grid["bin"] <= t1)
@@ -91,7 +94,8 @@ class DeviceStore:
     def device_events(self, device: int) -> dict[str, Any]:
         if device not in self.device_ids():
             raise ToolError(f"unknown device {device}")
-        mine = [e for e in self.events if e["device"] == device][:5]
+        # The five most recent flagged events of this device (events are stored by score, so sort by start time).
+        mine = sorted((e for e in self.events if e["device"] == device), key=lambda e: str(e["start"]))[-5:]
         return {
             "device": device,
             "events": [
@@ -124,7 +128,10 @@ TOOL_SPECS: list[ToolSpec] = [
     ),
     ToolSpec(
         name="get_device_events",
-        description="The most recent flagged events for one device, with the rules that fired.",
+        description=(
+            "Up to five most recent flagged events for one device, with the rules that fired. "
+            "Only the 300 highest-scoring test events are kept, so older events may be missing."
+        ),
         parameters={
             "type": "object",
             "properties": {"device": {"type": "integer"}},

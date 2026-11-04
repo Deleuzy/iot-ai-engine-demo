@@ -21,6 +21,8 @@ from iot_ai.prepare import build_grid, clean_readings, inject, select_devices, s
 from iot_ai.validate import audit_raw, detect_on_grid
 
 EVENTS_KEPT = 300
+# Fields that reveal the injected answer key. Only evaluation may read them, from answer_key.json.
+ANSWER_KEY_FIELDS = ("injected_overlap", "injected_kinds")
 
 
 def _write_json(path: Path, payload: Any) -> None:
@@ -138,7 +140,19 @@ def run(
         gbm_score[test].reset_index(drop=True),
         rule_flags[test].reset_index(drop=True),
     )
-    _write_json(processed_dir / "events.json", test_events[:EVENTS_KEPT])
+    kept = test_events[:EVENTS_KEPT]
+    # The answer key goes to its own file. events.json is what the engine reads, so it carries no label fields.
+    _write_json(
+        processed_dir / "events.json",
+        [{k: v for k, v in e.items() if k not in ANSWER_KEY_FIELDS} for e in kept],
+    )
+    _write_json(
+        processed_dir / "answer_key.json",
+        [
+            {"event_id": f"{e['device']}@{e['start']}", **{k: e[k] for k in ANSWER_KEY_FIELDS}}
+            for e in kept
+        ],
+    )
     # The label and fault_kind columns are kept for evaluation only; the AI engine never reads them.
     injected_out = injected[
         ["mote", "bin", "temperature", "humidity", "light", "voltage", "n_readings", "label", "fault_kind"]

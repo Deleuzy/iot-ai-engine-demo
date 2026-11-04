@@ -8,12 +8,13 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
+from iot_ai.ai import guardrails
 from iot_ai.ai.backends import AnthropicBackend, BackendError, MockBackend, OpenAICompatBackend, make_backend
 from iot_ai.ai.embed import HashingEmbedder
 from iot_ai.ai.engine import Engine
 from iot_ai.ai.knowledge import build_index, load_passages
 from iot_ai.ai.tools import DeviceStore, ToolError, run_tool
-from iot_ai.ai.types import Message
+from iot_ai.ai.types import Message, ModelTurn
 from iot_ai.api import State, create_app
 from iot_ai.config import KNOWLEDGE_DIR
 
@@ -164,3 +165,67 @@ def test_api_explain_and_health(store: DeviceStore, processed_dir: Path, events:
 def test_api_without_data_returns_503() -> None:
     client = TestClient(create_app(State(None, [], "none")))
     assert client.post("/explain", json={"event_id": "x"}).status_code == 503
+
+
+class _Recorder:
+    name = "recorder"
+
+    def __init__(self) -> None:
+        self.prompts: list[str] = []
+
+    def turn(self, messages: list[Message], tools: list[Any]) -> ModelTurn:
+        self.prompts.append(next(m.text for m in messages if m.role == "user"))
+        return ModelTurn("not an answer")
+
+
+class _Raises:
+    name = "raises"
+
+    def turn(self, messages: list[Message], tools: list[Any]) -> ModelTurn:
+        raise httpx.ConnectError("provider unreachable")
+
+
+def test_prompt_has_no_answer_key(store: DeviceStore, events: list[dict[str, Any]]) -> None:
+    embedder = HashingEmbedder()
+    passages = load_passages(KNOWLEDGE_DIR)
+    recorder = _Recorder()
+    engine = Engine(recorder, embedder, build_index(passages, embedder), passages, store)
+    leaky = next(e for e in events if e["injected_overlap"])
+    engine.explain(leaky)
+    assert recorder.prompts
+    assert "injected" not in recorder.prompts[0]
+    assert "fault_kind" not in recorder.prompts[0]
+
+
+def test_backend_exception_falls_back(store: DeviceStore, events: list[dict[str, Any]]) -> None:
+    embedder = HashingEmbedder()
+    passages = load_passages(KNOWLEDGE_DIR)
+    engine = Engine(_Raises(), embedder, build_index(passages, embedder), passages, store)
+    out = engine.explain(events[0])
+    assert out.status == "fallback_template"
+    assert any("backend failed" in f for f in out.guardrail_findings)
+
+
+@pytest.mark.parametrize("rules", [["missing"], ["stuck"], ["spike"], ["range"], []])
+def test_fallback_meets_the_same_checks(store: DeviceStore, events: list[dict[str, Any]], rules: list[str]) -> None:
+    """The template must pass the guardrail checks by construction: its citation is retrieved, its numbers come from the event."""
+    embedder = HashingEmbedder()
+    passages = load_passages(KNOWLEDGE_DIR)
+    engine = Engine(MockBackend("good"), embedder, build_index(passages, embedder), passages, store)
+    event = {**events[0], "rules_fired": rules}
+    retrieved = engine.retrieve(event)
+    out = engine._fallback("x", event, retrieved, [], 1)
+    answer = {"summary": out.summary, "suggested_action": out.suggested_action, "cited_passages": out.cited_passages}
+    verdict = guardrails.check(answer, [], retrieved, event, 1, [])
+    assert verdict.passed, verdict.findings
+
+
+def test_bad_timestamp_is_a_tool_error(store: DeviceStore) -> None:
+    with pytest.raises(ToolError):
+        run_tool(store, "get_device_history", {"device": 1, "start": "yesterday", "end": "today"})
+
+
+def test_device_events_are_the_most_recent(store: DeviceStore) -> None:
+    rows = run_tool(store, "get_device_events", {"device": 1})["events"]
+    starts = [r["start"] for r in rows]
+    assert starts == sorted(starts)

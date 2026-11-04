@@ -1,7 +1,7 @@
 {
   "horizon_minutes": 60,
-  "test_rows": 24269,
-  "mae_persistence_volts": 0.0068,
-  "mae_gbm_volts": 0.0086,
+  "test_rows": 2771,
+  "mae_persistence_volts": 0.0072,
+  "mae_gbm_volts": 0.0097,
   "gbm_beats_persistence": false
 }

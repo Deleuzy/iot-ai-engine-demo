@@ -50,7 +50,11 @@ def run_eval(processed_dir: Path = PROCESSED_DIR, results_dir: Path = RESULTS_DI
         retrieval_detail.append({"query": query, "expected": expected, "top3": ids})
 
     events = json.loads((processed_dir / "events.json").read_text(encoding="utf-8"))
-    sample = _sample_events(events, 40)
+    answer_key = {
+        row["event_id"]: row
+        for row in json.loads((processed_dir / "answer_key.json").read_text(encoding="utf-8"))
+    }
+    sample = _sample_events(events, answer_key, 40)
 
     def run_with(mode: str) -> list[Any]:
         engine = Engine(MockBackend(mode), embedder, index, passages, data)
@@ -92,7 +96,16 @@ def run_eval(processed_dir: Path = PROCESSED_DIR, results_dir: Path = RESULTS_DI
     return report
 
 
-def _sample_events(events: list[dict[str, Any]], n: int) -> list[dict[str, Any]]:
-    """Deterministic sample: the first n events that have at least one rule fired, or an injected overlap."""
-    picked = [e for e in events if e["rules_fired"] or e["injected_overlap"]]
+def _sample_events(
+    events: list[dict[str, Any]], answer_key: dict[str, dict[str, Any]], n: int
+) -> list[dict[str, Any]]:
+    """Deterministic sample: the first n events that have at least one rule fired, or an injected overlap.
+
+    The answer key is used here, for evaluation only. The sampled events themselves carry no label fields.
+    """
+    picked = [
+        e
+        for e in events
+        if e["rules_fired"] or answer_key.get(f"{e['device']}@{e['start']}", {}).get("injected_overlap", False)
+    ]
     return picked[:n]

@@ -21,7 +21,9 @@ ACTIONS = (
     "schedule_battery_check",
     "monitor_only",
 )
-_NUMBER = re.compile(r"(?<![\w.])-?\d+(?:\.\d+)?(?![\w])")
+# A number is a run of digits, optionally with a decimal part, not part of a longer digit run. Letters may follow
+# directly, so "999bins" or "3.7V" are checked too.
+_NUMBER = re.compile(r"(?<![\d.])-?\d+(?:\.\d+)?(?!\d)")
 _ISO = re.compile(r"\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?)?")
 
 
@@ -61,10 +63,16 @@ def _decimals(token: str) -> int:
 
 
 def _matches(token: str, allowed: list[float]) -> bool:
+    """A token matches only if a tool value, rounded to the token's own decimals, equals it.
+
+    An integer token must equal a tool value exactly, so "3" does not match 2.712 and "21" does not match 21.37.
+    A decimal token such as "21.4" matches 21.37, since that is 21.37 written to one decimal.
+    """
     value = float(token)
     d = _decimals(token)
-    tolerance = 0.5 * 10 ** (-d) + 1e-9
-    return any(abs(a - value) <= tolerance for a in allowed)
+    if d == 0:
+        return any(abs(a - value) < 1e-9 for a in allowed)
+    return any(abs(round(a, d) - value) < 1e-9 for a in allowed)
 
 
 def findings_blocking(findings: list[str]) -> bool:
@@ -83,7 +91,7 @@ def check(
     findings: list[str] = []
     findings.extend(f"tool call failed: {e}" for e in tool_errors)
     if answer is None:
-        return Verdict(False, ["answer is not a JSON object"])
+        return Verdict(False, [*findings, "answer is not a JSON object"])
     summary = answer.get("summary")
     action = answer.get("suggested_action")
     cited = answer.get("cited_passages")
